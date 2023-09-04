@@ -1,3 +1,5 @@
+import * as menu from "./menu.js";
+
 const FPS = 60;
 const showFPS = false;
 
@@ -10,27 +12,72 @@ var highscore = 0;
 var score = 0;
 var animateScore = 0;
 var scoreScale = 1;
+var debugged = false;
+var delayedClick = FPS;
+var stage = 0;
 
 function init() {
   canvas.width = react.width;
   canvas.height = react.height;
   screen_scale = canvas.width / 100;
-  // canvas.addEventListener("click", touch);
-  // canvas.addEventListener("touchstart", (e) => touch(e.touches[0]));
-  // canvas.addEventListener("touchmove", (e) => touch(e.touches[0]));
-  // canvas.addEventListener("touchend", (e) => touch(e.touches[0]));
+  canvas.addEventListener("click", touch);
+  canvas.addEventListener("touchstart", (e) => touch(e.touches[0]));
+  canvas.addEventListener("touchmove", (e) => touch(e.touches[0]));
+  canvas.addEventListener("touchend", (e) => touch(e.touches[0]));
   highscore = loadScore();
   ctx.textBaseline = "top";
   // creatGrid();
   setInterval(update, 1000 / FPS);
 }
 
-setFontSize = (size = 7) => ctx.font = screen_scale * size + "px comic sans ms";
+const setFontSize = (size = 7) => ctx.font = screen_scale * size + "px comic sans ms";
+
+async function touch(e) {
+  if (!e) return;
+  // if (loading) return;
+  // loading = true;
+  var react = canvas.getBoundingClientRect();
+  var x = (e.clientX - react.left) / screen_scale;
+  var y = (e.clientY - react.top) / screen_scale;
+  // console.log(x, y);
+  if (stage == 0) {
+    if (delayedClick) return;
+    delayedClick = FPS;
+    stage = 1;
+    return;
+  }
+  if (y < 10 && x > 90) {
+    saveScore();
+    window.location.reload();
+    return;
+  }
+  if (y < 15 && x < 20) {
+    if (delayedClick) return;
+    delayedClick = FPS;
+    debugged = !debugged;
+    return;
+  }
+
+  // if (y > 190 && x < 20) {
+  //   if (delayedClick) return;
+  //   delayedClick = FPS;
+  //   isBotEnabled = !isBotEnabled;
+  //   return;
+  // }
+  // if (isBotEnabled) botMoveList = [];
+  // isBotEnabled = false;
+  // controller.touch(x, y);
+}
 
 async function update() {
+  if (delayedClick > 0) delayedClick--;
+  else delayedClick = 0;
   // console.log(spawn_pool, board, poping_pool)
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawBG();
+  if (stage == 0) {
+    menu.draw(ctx, canvas);
+  }
 }
 
 function drawBG() {
@@ -40,6 +87,7 @@ function drawBG() {
   ctx.fillStyle = grd;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  if (stage == 0) return;
   ctx.textAlign = "start";
   ctx.fillStyle = "black";
   if (animateScore < score && scoreScale < 1.1) {
@@ -57,8 +105,8 @@ function drawBG() {
   // setFontSize(4)
   // ctx.fillStyle = "black";
   // ctx.fillText(`Bot: ${isBotEnabled ? 'on' : 'off'}`, 2 * screen_scale, 193 * screen_scale);
-  // setFontSize(10);
-  // ctx.fillText("↻", 92 * screen_scale, 2 * screen_scale);
+  setFontSize(10);
+  ctx.fillText("↻", 92 * screen_scale, 2 * screen_scale);
 
   if (showFPS) {
     var fps = 0;
