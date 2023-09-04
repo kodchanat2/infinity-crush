@@ -1,0 +1,22 @@
+{
+  "name": "INFINITY CRUSH - semi auto matching game",
+  "short_name": "Infinity Crush",
+  "theme_color": "#d3168f",
+  "background_color": "#1f2579",
+  "display": "standalone",
+  "Scope": "",
+  "start_url": "/infinity-crush",
+  "icons": [
+    "./favicon.ico",
+    {
+      "src": "./favicon.ico",
+      "sizes": "256x256",
+      "type": "image/png"
+    },
+    {
+      "src": "./favicon.ico",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
