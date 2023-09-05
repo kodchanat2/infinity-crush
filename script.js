@@ -1,4 +1,5 @@
 import * as menu from "./menu.js";
+import * as play from "./play.js";
 
 const FPS = 60;
 const showFPS = false;
@@ -26,11 +27,12 @@ function init() {
   canvas.addEventListener("touchend", (e) => touch(e.touches[0]));
   highscore = loadScore();
   ctx.textBaseline = "top";
+  play.init(ctx, screen_scale);
   // creatGrid();
   setInterval(update, 1000 / FPS);
 }
 
-const setFontSize = (size = 7) => ctx.font = screen_scale * size + "px comic sans ms";
+const setFontSize = (size = 7) => ctx.font = screen_scale * size + "px Comic Neue";
 
 async function touch(e) {
   if (!e) return;
@@ -77,6 +79,9 @@ async function update() {
   drawBG();
   if (stage == 0) {
     menu.draw(ctx, canvas);
+  }
+  else if (stage == 1) {
+    play.update();
   }
 }
 

@@ -19,6 +19,6 @@ export function draw(ctx, canvas) {
 
   ctx.textAlign = "center";
   ctx.fillStyle = "white";
-  ctx.font = "bold 20px comic sans ms";
+  ctx.font = "bold 20px Comic Neue";
   ctx.fillText("touch to start", center.x, canvas.height * 0.7 + 50);
 }
