@@ -96,7 +96,7 @@ function drawBG() {
   ctx.textAlign = "start";
   ctx.fillStyle = "black";
   if (animateScore < score && scoreScale < 1.1) {
-    animateScore += Math.ceil((score - animateScore) / 10);
+    animateScore += Math.ceil((score - animateScore) / 1);
     scoreScale = 1.2;
   }
   setFontSize(7 * scoreScale);
@@ -128,6 +128,10 @@ function drawBG() {
     ctx.fillText(Math.round(fps), 4 * screen_scale, 30 * screen_scale);
     ctx.scale(2, 2);
   }
+}
+
+export function addScore(amount = 1) {
+  score += amount;
 }
 
 // score

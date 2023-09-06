@@ -1,3 +1,5 @@
+import { addScore } from "./script.js";
+
 var ctx;
 var screen_scale;
 const image = document.getElementById("item");
@@ -151,6 +153,12 @@ class Item {
     }
   }
 
+  match() {
+    if (this.state == STATE.MATCHING) return;
+    this.state = STATE.MATCHING;
+    addScore();
+  }
+
   destroying() {
     if (this.power !== POWER.NONE && !destroyingStage) return;
     if (this.power == POWER.BOMB && destroyingStage < 2) return;
@@ -191,7 +199,7 @@ function matching() {
       stack = Math.max(stack, checkMatch(dir, dir == 'x' ? x + 1 : x, dir == 'y' ? y + 1 : y, grid[x][y].type, stack));
     }
     if (stack >= 3) {
-      grid[x][y].state = STATE.MATCHING;
+      grid[x][y].match();
       isMatch = true;
       if (grid[x][y].power == POWER.BOMB) isBombMatch = true;
       if (grid[x][y].power == POWER.LINEX || grid[x][y].power == POWER.LINEY) isLineMatch = true;
@@ -218,12 +226,12 @@ function destroyByLine() {
     for (let j = 0; j < gridSize.h; j++) {
       if (grid[i][j].power == POWER.LINEX && grid[i][j].state == STATE.MATCHING) {
         for (let k = 0; k < gridSize.w; k++) {
-          grid[k][j].state = STATE.MATCHING;
+          grid[k][j].match();
         }
       }
       if (grid[i][j].power == POWER.LINEY && grid[i][j].state == STATE.MATCHING) {
         for (let k = 0; k < gridSize.h; k++) {
-          grid[i][k].state = STATE.MATCHING;
+          grid[i][k].match();
         }
         continue;
       }
@@ -245,7 +253,7 @@ function destroyByBomb() {
   for (let i = 0; i < gridSize.w; i++) {
     for (let j = 0; j < gridSize.h; j++) {
       if (bombtype[grid[i][j].type] > 0) {
-        grid[i][j].state = STATE.MATCHING;
+        grid[i][j].match();
       }
     }
   }
