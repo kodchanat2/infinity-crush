@@ -5,7 +5,7 @@ const imageSize = 40;
 const itemSize = 10;
 const itemPadding = 0.6;
 const boardPadding = 2;
-const bombTime = 10;
+const bombTime = 15;
 const gridSize = { w: 9, h: 10 };
 const boardSize = { w: gridSize.w * (itemSize + itemPadding) - itemPadding, h: gridSize.h * (itemSize + itemPadding) - itemPadding };
 const startPos = { x: 0, y: 0 };
@@ -16,9 +16,16 @@ const STATE = {
   IDLE: 0,
   MATCHING: 1,
 }
+const POWER = {
+  NONE: 0,
+  LINEX: 1,
+  LINEY: 2,
+  BOMB: 3,
+}
 
 var rainbowParade = 0;
 var bombTimer = 0;
+var destroyingStage = 0;
 var gameState = STATE.MOVING;
 
 export function init(_ctx, _screen_scale) {
@@ -73,6 +80,13 @@ export function update() {
         }
       });
     }
+    else if (bombTimer == bombTime * 2) {
+      destroyByLine();
+    }
+    else if (bombTimer == bombTime) {
+      if (destroyingStage == 1) destroyByBomb();
+      else destroyByLine();
+    }
   }
   else if (gameState == STATE.IDLE) {
     matching();
@@ -101,18 +115,21 @@ function drawBG() {
 
 function newItem(x, y, curY = gridSize.h) {
   var type = Math.floor(Math.random() * 6);
-  if (Math.floor(tmpfill[x][y] / 10) > 1) type = tmpfill[x][y] % 10;
+  var stack = Math.floor(tmpfill[x][y] / 10);
+  var _type = tmpfill[x][y] % 10;
+  if (stack > 1 && stack <= 5 && _type >= 0 && _type < 6) type = _type;
   return new Item(type, x, y, curY);
 }
 
-function drawItem(item, x, y, size = 1) {
-  if (item >= 6) return;
-  ctx.drawImage(image, item * imageSize, 0, imageSize, imageSize, ((startPos.x + x * (itemSize + itemPadding)) + (1 - size) * itemSize / 2) * screen_scale, ((startPos.y - (y + 1) * (itemSize + itemPadding)) + (1 - size) * itemSize / 2) * screen_scale, itemSize * size * screen_scale, itemSize * size * screen_scale);
+function drawItem(type, x, y, power = POWER.NONE, size = 1) {
+  if (type >= 6) return;
+  ctx.drawImage(image, type * imageSize, power * imageSize, imageSize, imageSize, ((startPos.x + x * (itemSize + itemPadding)) + (1 - size) * itemSize / 2) * screen_scale, ((startPos.y - (y + 1) * (itemSize + itemPadding)) + (1 - size) * itemSize / 2) * screen_scale, itemSize * size * screen_scale, itemSize * size * screen_scale);
 }
 
 class Item {
   constructor(type, x, y, curY) {
     this.type = type;
+    this.power = POWER.NONE;
     this.x = x;
     this.y = y;
     this.curY = curY;
@@ -135,27 +152,33 @@ class Item {
   }
 
   destroying() {
+    if (this.power !== POWER.NONE && !destroyingStage) return;
+    if (this.power == POWER.BOMB && destroyingStage < 2) return;
     if (this.state == STATE.MATCHING && this.size > 0)
       this.size = Math.max(0, this.size - 1 / bombTime);
     if (this.size < 0) this.size = 0;
   }
 
   draw() {
-    drawItem(this.type, this.x, this.curY, this.size);
+    drawItem(this.type, this.x, this.curY, this.power, this.size);
   }
 }
 
 function matching() {
   var isMatch = false;
+  var isLineMatch = false;
+  var isBombMatch = false;
   for (let i = 0; i < gridSize.h; i++) {
     checkMatch('x', 0, i);
   }
   for (let i = 0; i < gridSize.w; i++) {
     checkMatch('y', i, 0);
   }
-  // console.log("matching: ", isMatch);
+  // console.log("matching :", isMatch, isLineMatch, isBombMatch);
   if (isMatch) {
     bombTimer = bombTime;
+    if (isLineMatch) bombTimer += bombTime;
+    if (isBombMatch) bombTimer += bombTime;
   }
   else {
     logGrid();
@@ -163,30 +186,72 @@ function matching() {
 
   function checkMatch(dir, x, y, type = -1, _stack = 0) {
     var stack = grid[x][y].type == type ? _stack + 1 : 1;
-    if (dir == 'x') {
-      if (x < gridSize.w - 1) {
-        stack = Math.max(stack, checkMatch(dir, x + 1, y, grid[x][y].type, stack));
-      }
-      if (stack >= 3) {
-        grid[x][y].state = STATE.MATCHING;
-        isMatch = true;
-      }
-      if (type == grid[x][y].type) return stack;
-      else return 1;
+
+    if ((dir == 'x' && x < gridSize.w - 1) || (dir == 'y' && y < gridSize.h - 1)) {
+      stack = Math.max(stack, checkMatch(dir, dir == 'x' ? x + 1 : x, dir == 'y' ? y + 1 : y, grid[x][y].type, stack));
     }
-    else if (dir == 'y') {
-      if (y < gridSize.h - 1) {
-        stack = Math.max(stack, checkMatch(dir, x, y + 1, grid[x][y].type, stack));
+    if (stack >= 3) {
+      grid[x][y].state = STATE.MATCHING;
+      isMatch = true;
+      if (grid[x][y].power == POWER.BOMB) isBombMatch = true;
+      if (grid[x][y].power == POWER.LINEX || grid[x][y].power == POWER.LINEY) isLineMatch = true;
+      if (stack > 10) {
+        var center = Math.ceil(stack / 20);
+        if (center === stack % 10) {
+          grid[x][y].state = STATE.IDLE;
+          grid[x][y].power = Math.floor(stack / 10) > 4 ? POWER.BOMB : dir == 'x' ? POWER.LINEX : POWER.LINEY;
+        }
       }
-      if (stack >= 3) {
-        grid[x][y].state = STATE.MATCHING;
-        isMatch = true;
-      }
-      if (type == grid[x][y].type) return stack;
-      else return 1;
     }
+    if (type == grid[x][y].type) {
+      if (stack > 10) return stack - 1;
+      if (stack > 3) return stack * 10 + stack - 1;
+      return stack;
+    }
+    else return 1;
   }
 }
+
+function destroyByLine() {
+  // console.log('destroyByLine');
+  for (let i = 0; i < gridSize.w; i++) {
+    for (let j = 0; j < gridSize.h; j++) {
+      if (grid[i][j].power == POWER.LINEX && grid[i][j].state == STATE.MATCHING) {
+        for (let k = 0; k < gridSize.w; k++) {
+          grid[k][j].state = STATE.MATCHING;
+        }
+      }
+      if (grid[i][j].power == POWER.LINEY && grid[i][j].state == STATE.MATCHING) {
+        for (let k = 0; k < gridSize.h; k++) {
+          grid[i][k].state = STATE.MATCHING;
+        }
+        continue;
+      }
+    }
+  }
+  destroyingStage = 1;
+}
+
+function destroyByBomb() {
+  // console.log('destroyByBomb');
+  var bombtype = [0, 0, 0, 0, 0, 0];
+  for (let i = 0; i < gridSize.w; i++) {
+    for (let j = 0; j < gridSize.h; j++) {
+      if (grid[i][j].power == POWER.BOMB && grid[i][j].state == STATE.MATCHING) {
+        bombtype[grid[i][j].type]++;
+      }
+    }
+  }
+  for (let i = 0; i < gridSize.w; i++) {
+    for (let j = 0; j < gridSize.h; j++) {
+      if (bombtype[grid[i][j].type] > 0) {
+        grid[i][j].state = STATE.MATCHING;
+      }
+    }
+  }
+  destroyingStage = 2;
+}
+
 
 function bestfill() {
   for (let i = 0; i < gridSize.w; i++) {
@@ -245,7 +310,7 @@ function logGrid() {
   var str = "";
   for (let j = gridSize.h - 1; j >= 0; j--) {
     for (let i = 0; i < gridSize.w; i++) {
-      str += grid[i][j].type + " ";
+      str += "" + grid[i][j].power + grid[i][j].type + " ";
     }
     str += "\n";
   }
