@@ -10,6 +10,7 @@ const gridSize = { w: 9, h: 10 };
 const boardSize = { w: gridSize.w * (itemSize + itemPadding) - itemPadding, h: gridSize.h * (itemSize + itemPadding) - itemPadding };
 const startPos = { x: 0, y: 0 };
 const grid = [];
+const tmpfill = [];
 const STATE = {
   MOVING: -1,
   IDLE: 0,
@@ -28,8 +29,9 @@ export function init(_ctx, _screen_scale) {
 
 
   for (let i = 0; i < gridSize.w; i++) {
+    grid[i] = [];
+    tmpfill[i] = [];
     for (let j = 0; j < gridSize.h; j++) {
-      if (!grid[i]) grid[i] = [];
       grid[i][j] = newItem(i, j, j + gridSize.h);
     }
   }
@@ -50,6 +52,7 @@ export function update() {
   if (bombTimer > 0) {
     if (!--bombTimer) {
       // arrage grid
+      var blank = [];
       for (let i = 0; i < gridSize.w; i++) {
         let n = 0;
         for (let j = 0; j + n < gridSize.h; j++) {
@@ -60,10 +63,15 @@ export function update() {
             grid[i][j].y -= n;
           }
         }
-        for (let j = 0; j < n; j++) {
-          grid[i].push(newItem(i, gridSize.h - n + j, gridSize.h + j));
-        }
+        blank[i] = n;
       }
+      bestfill().then(() => {
+        for (let i = 0; i < gridSize.w; i++) {
+          for (let j = 0; j < blank[i]; j++) {
+            grid[i].push(newItem(i, gridSize.h - blank[i] + j, gridSize.h + j));
+          }
+        }
+      });
     }
   }
   else if (gameState == STATE.IDLE) {
@@ -92,7 +100,9 @@ function drawBG() {
 }
 
 function newItem(x, y, curY = gridSize.h) {
-  return new Item(Math.floor(Math.random() * 6), x, y, curY);
+  var type = Math.floor(Math.random() * 6);
+  if (Math.floor(tmpfill[x][y] / 10) > 1) type = tmpfill[x][y] % 10;
+  return new Item(type, x, y, curY);
 }
 
 function drawItem(item, x, y, size = 1) {
@@ -143,9 +153,12 @@ function matching() {
   for (let i = 0; i < gridSize.w; i++) {
     checkMatch('y', i, 0);
   }
+  // console.log("matching: ", isMatch);
   if (isMatch) {
-    console.log("matching: ", isMatch);
     bombTimer = bombTime;
+  }
+  else {
+    logGrid();
   }
 
   function checkMatch(dir, x, y, type = -1, _stack = 0) {
@@ -167,9 +180,74 @@ function matching() {
       }
       if (stack >= 3) {
         grid[x][y].state = STATE.MATCHING;
+        isMatch = true;
       }
       if (type == grid[x][y].type) return stack;
       else return 1;
     }
   }
+}
+
+function bestfill() {
+  for (let i = 0; i < gridSize.w; i++) {
+    for (let j = 0; j < gridSize.h; j++) {
+      tmpfill[i][j] = 0;
+    }
+  }
+
+  // L to R
+  for (let j = 0; j < gridSize.h; j++) {
+    for (let i = 0, lastType = -1, stack = 0; i < gridSize.w; i++) {
+      [lastType, stack] = _survay(i, j, lastType, stack);
+    }
+  }
+  // console.log(tmpfill);
+  // R to L
+  for (let j = 0; j < gridSize.h; j++) {
+    for (let i = gridSize.w - 1, lastType = -1, stack = 0; i >= 0; i--) {
+      [lastType, stack] = _survay(i, j, lastType, stack);
+    }
+  }
+  // console.log(tmpfill);
+  // T to B
+  for (let i = 0; i < gridSize.w; i++) {
+    for (let j = 0, lastType = -1, stack = 0; j < gridSize.h; j++) {
+      [lastType, stack] = _survay(i, j, lastType, stack);
+    }
+  }
+  // console.log(tmpfill);
+  // B to T
+  for (let i = 0; i < gridSize.w; i++) {
+    for (let j = gridSize.h - 1, lastType = -1, stack = 0; j >= 0; j--) {
+      [lastType, stack] = _survay(i, j, lastType, stack);
+    }
+  }
+  // console.log(tmpfill);
+  return Promise.resolve(true);
+
+  function _survay(x, y, lastType, stack) {
+    if (grid[x][y]) {
+      stack = grid[x][y].type == lastType ? stack + 1 : 1;
+      lastType = grid[x][y].type;
+    }
+    else {
+      stack++;
+      if (stack > 5) lastType = -1;
+      if (lastType >= 0) {
+        tmpfill[x][y] = Math.max(tmpfill[x][y], lastType + stack * 10);
+      }
+    }
+    return [lastType, stack];
+  }
+}
+
+function logGrid() {
+  var str = "";
+  for (let j = gridSize.h - 1; j >= 0; j--) {
+    for (let i = 0; i < gridSize.w; i++) {
+      str += grid[i][j].type + " ";
+    }
+    str += "\n";
+  }
+  console.log(str);
 }
