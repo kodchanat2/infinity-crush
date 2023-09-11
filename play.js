@@ -13,6 +13,7 @@ const boardSize = { w: gridSize.w * (itemSize + itemPadding) - itemPadding, h: g
 const startPos = { x: 0, y: 0 };
 const grid = [];
 const tmpfill = [];
+const debugged = false;
 const STATE = {
   MOVING: -1,
   IDLE: 0,
@@ -25,10 +26,16 @@ const POWER = {
   BOMB: 3,
 }
 
+var AUTOFILL = false;
+var moveCount = 0;
 var rainbowParade = 0;
 var bombTimer = 0;
+var swapTimer = 0;
 var destroyingStage = 0;
 var gameState = STATE.MOVING;
+var touchState = STATE.IDLE;
+var selectingItem = null;
+var swapingItem = null;
 
 export function init(_ctx, _screen_scale) {
   ctx = _ctx;
@@ -46,8 +53,13 @@ export function init(_ctx, _screen_scale) {
   }
 }
 
+export function setMode(mode) {
+  AUTOFILL = mode;
+}
+
 export function update() {
   drawBG();
+  drawSwaping();
   if (bombTimer === 0) gameState = STATE.IDLE;
   for (let i = 0; i < gridSize.w; i++) {
     for (let j = 0; j < gridSize.h; j++) {
@@ -95,6 +107,53 @@ export function update() {
   }
 }
 
+// ==================== touch ====================
+
+function XYtoGridPos(x, y) {
+  var gridPos = { x: Math.floor((x - startPos.x) / (itemSize + itemPadding)), y: Math.floor((startPos.y - y) / (itemSize + itemPadding)) };
+  if (gridPos.x < 0 || gridPos.x > gridSize.w || gridPos.y < 0 || gridPos.y > gridSize.h) return { x: -1, y: -1 };
+  return gridPos;
+}
+
+function touchCancel() {
+  if (touchState == STATE.MATCHING && gameState == STATE.IDLE) return;
+  touchState = STATE.IDLE;
+  swapingItem = null;
+  selectingItem = null;
+}
+
+function swapItem(gridPos, force = false) {
+  if (selectingItem && selectingItem.x == gridPos.x && selectingItem.y == gridPos.y) return;
+  if (selectingItem && Math.abs(selectingItem.x - gridPos.x) + Math.abs(selectingItem.y - gridPos.y) == 1) {
+    swapingItem = grid[gridPos.x][gridPos.y];
+    touchState = STATE.MATCHING;
+    swapTimer = bombTime * 2;
+  } else if (!force) {
+    selectingItem = grid[gridPos.x][gridPos.y];
+    swapingItem = null;
+    touchState = STATE.MOVING;
+  }
+  else {
+    touchCancel();
+  }
+}
+
+export function touchStart(x, y) {
+  if (gameState != STATE.IDLE || touchState == STATE.MATCHING) return touchCancel();
+  var gridPos = XYtoGridPos(x, y);
+  if (gridPos.x < 0) return touchCancel();
+  swapItem(gridPos);
+}
+
+export function touchMove(x, y) {
+  if (touchState != STATE.MOVING || gameState != STATE.IDLE) return touchCancel();
+  var gridPos = XYtoGridPos(x, y);
+  if (gridPos.x < 0) return touchCancel();
+  swapItem(gridPos, true);
+}
+
+// ==================== draw ====================
+
 function drawBG() {
   // draw line
   ctx.beginPath();
@@ -113,13 +172,87 @@ function drawBG() {
   ctx.stroke();
   ctx.fillStyle = "#1d269a3c";
   ctx.fill();
+
+  ctx.font = 5 * screen_scale + "px Comic Neue";
+  ctx.fillStyle = "black";
+  ctx.fillText("move: " + moveCount, 2 * screen_scale, 12 * screen_scale);
+  ctx.font = "bold " + 10 * screen_scale + "px Comic Neue";
+  ctx.textAlign = "center";
+  ctx.fillStyle = grd;
+  if (AUTOFILL)
+    ctx.fillText("ALWAYS LUCKY", 50 * screen_scale, 38 * screen_scale);
+}
+
+function drawSwaping() {
+  if (gameState != STATE.IDLE) {
+    if (swapTimer > 0) moveCount++;
+    swapTimer = 0;
+    return touchCancel();
+  }
+  if (touchState == STATE.IDLE) return;
+  const _diffSize = 0.4;
+  const selectingPos = { x: selectingItem?.x || 0, y: selectingItem?.y || 0, size: 1 };
+  const swapingPos = { x: swapingItem?.x || 0, y: swapingItem?.y || 0, size: 1 };
+  if (touchState === STATE.MATCHING) {
+    swapTimer--;
+    var alpha = 0;
+    if (swapTimer >= bombTime) {
+      alpha = 1 - (swapTimer - bombTime) / bombTime;
+    } else {
+      alpha = (bombTime - swapTimer) / bombTime;
+    }
+    selectingPos.x = selectingItem.x + (swapingItem.x - selectingItem.x) * alpha;
+    selectingPos.y = selectingItem.y + (swapingItem.y - selectingItem.y) * alpha;
+    swapingPos.x = swapingItem.x + (selectingItem.x - swapingItem.x) * alpha;
+    swapingPos.y = swapingItem.y + (selectingItem.y - swapingItem.y) * alpha;
+    selectingPos.size = 1 + Math.sin(Math.PI * alpha) * _diffSize;
+    swapingPos.size = 1 - Math.sin(Math.PI * alpha) * _diffSize;
+  }
+  if (swapingItem) {
+    _drawArea(swapingItem);
+    _drawItem(swapingItem, swapingPos);
+  }
+  if (selectingItem) {
+    _drawArea(selectingItem);
+    _drawItem(selectingItem, selectingPos);
+  }
+  if (touchState == STATE.MATCHING && swapTimer % bombTime == 0) {
+    selectingItem.x = selectingPos.x;
+    selectingItem.y = selectingPos.y;
+    selectingItem.curY = selectingPos.y;
+    swapingItem.x = swapingPos.x;
+    swapingItem.y = swapingPos.y;
+    swapingItem.curY = swapingPos.y;
+    grid[selectingItem.x][selectingItem.y] = selectingItem;
+    grid[swapingItem.x][swapingItem.y] = swapingItem;
+    var tmp = selectingItem;
+    selectingItem = swapingItem;
+    swapingItem = tmp;
+    if (swapTimer == 0) {
+      touchState = STATE.IDLE;
+      touchCancel();
+    }
+  }
+
+  function _drawArea(item) {
+    ctx.beginPath();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+    ctx.lineWidth = 0.5 * screen_scale;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.roundRect((startPos.x + item.x * (itemSize + itemPadding) - itemPadding / 2) * screen_scale, (startPos.y - (item.y + 1) * (itemSize + itemPadding) - itemPadding / 2) * screen_scale, (itemSize + itemPadding) * screen_scale, (itemSize + itemPadding) * screen_scale, itemPadding * screen_scale);
+    ctx.fill();
+    ctx.stroke();
+  }
+  function _drawItem(item, pos) {
+    drawItem(item.type, pos.x, pos.y, item.power, item.size * pos.size);
+  }
 }
 
 function newItem(x, y, curY = gridSize.h) {
   var type = Math.floor(Math.random() * 6);
   var stack = Math.floor(tmpfill[x][y] / 10);
   var _type = tmpfill[x][y] % 10;
-  if (stack > 1 && stack <= 5 && _type >= 0 && _type < 6) type = _type;
+  if (AUTOFILL && stack > 1 && stack <= 5 && _type >= 0 && _type < 6) type = _type;
   return new Item(type, x, y, curY);
 }
 
@@ -168,9 +301,12 @@ class Item {
   }
 
   draw() {
+    if (touchState != STATE.IDLE && (this == selectingItem || this == swapingItem)) return;
     drawItem(this.type, this.x, this.curY, this.power, this.size);
   }
 }
+
+// ==================== ALGORITHM ====================
 
 function matching() {
   var isMatch = false;
@@ -184,6 +320,7 @@ function matching() {
   }
   // console.log("matching :", isMatch, isLineMatch, isBombMatch);
   if (isMatch) {
+    gameState = STATE.MATCHING;
     bombTimer = bombTime;
     if (isLineMatch) bombTimer += bombTime;
     if (isBombMatch) bombTimer += bombTime;
@@ -322,5 +459,5 @@ function logGrid() {
     }
     str += "\n";
   }
-  console.log(str);
+  if (debugged) console.log(str);
 }

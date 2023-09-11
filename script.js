@@ -16,15 +16,18 @@ var scoreScale = 1;
 var debugged = false;
 var delayedClick = FPS;
 var stage = 0;
+var mouseDown = false;
 
 function init() {
   canvas.width = react.width;
   canvas.height = react.height;
   screen_scale = canvas.width / 100;
-  canvas.addEventListener("click", touch);
-  canvas.addEventListener("touchstart", (e) => touch(e.touches[0]));
-  canvas.addEventListener("touchmove", (e) => touch(e.touches[0]));
-  canvas.addEventListener("touchend", (e) => touch(e.touches[0]));
+  canvas.addEventListener("mousedown", (e) => touch(e, 2));
+  canvas.addEventListener("touchstart", (e) => touch(e.touches[0], 1));
+  canvas.addEventListener("mousemove", (e) => touch(e, -2));
+  canvas.addEventListener("touchmove", (e) => touch(e.touches[0], -1));
+  canvas.addEventListener("mouseup", (e) => touch(e, 0));
+  // canvas.addEventListener("touchend", (e) => touch(e.touches[0], -1));
   highscore = loadScore();
   ctx.textBaseline = "top";
   play.init(ctx, screen_scale);
@@ -34,41 +37,45 @@ function init() {
 
 const setFontSize = (size = 7) => ctx.font = screen_scale * size + "px Comic Neue";
 
-async function touch(e) {
-  if (!e) return;
+async function touch(e, state) {
+  if (!e || delayedClick) return;
   // if (loading) return;
   // loading = true;
   var react = canvas.getBoundingClientRect();
   var x = (e.clientX - react.left) / screen_scale;
   var y = (e.clientY - react.top) / screen_scale;
   // console.log(x, y);
-  if (stage == 0) {
-    if (delayedClick) return;
-    delayedClick = FPS;
-    stage = 1;
-    return;
+  // console.log(state)
+  if (state > 0) { // mousedown
+    if (state == 2) mouseDown = true;
+    if (stage == 0) {
+      var select = menu.click(x * screen_scale, y * screen_scale);
+      if (select == 0) return;
+      play.setMode(select - 1);
+      delayedClick = FPS;
+      stage = 1;
+      return;
+    } else if (stage == 1) {
+      play.touchStart(x, y);
+    }
+    if (y < 10 && x > 90) {
+      saveScore();
+      window.location.reload();
+      return;
+    }
+    if (y < 15 && x < 20) {
+      delayedClick = FPS;
+      debugged = !debugged;
+      return;
+    }
   }
-  if (y < 10 && x > 90) {
-    saveScore();
-    window.location.reload();
-    return;
+  else if (state == 0) { // mouseup
+    mouseDown = false;
   }
-  if (y < 15 && x < 20) {
-    if (delayedClick) return;
-    delayedClick = FPS;
-    debugged = !debugged;
-    return;
+  else if (state < 0) { // mousemove
+    if (state == -2 && !mouseDown) return;
+    if (stage == 1) play.touchMove(x, y);
   }
-
-  // if (y > 190 && x < 20) {
-  //   if (delayedClick) return;
-  //   delayedClick = FPS;
-  //   isBotEnabled = !isBotEnabled;
-  //   return;
-  // }
-  // if (isBotEnabled) botMoveList = [];
-  // isBotEnabled = false;
-  // controller.touch(x, y);
 }
 
 async function update() {
@@ -111,7 +118,7 @@ function drawBG() {
   // ctx.fillStyle = "black";
   // ctx.fillText(`Bot: ${isBotEnabled ? 'on' : 'off'}`, 2 * screen_scale, 193 * screen_scale);
   setFontSize(10);
-  ctx.fillText("↻", 92 * screen_scale, 2 * screen_scale);
+  ctx.fillText("↻", 92 * screen_scale, 5 * screen_scale);
 
   if (showFPS) {
     var fps = 0;
